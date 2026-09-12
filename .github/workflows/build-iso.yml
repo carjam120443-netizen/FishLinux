@@ -10,16 +10,32 @@ permissions:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
+    runs-on: ubuntu-26.04
+    timeout-minutes: 45
 
     steps:
       - name: Check out FishLinux
         uses: actions/checkout@v4
 
+      - name: Configure APT retries
+        run: |
+          set -euxo pipefail
+          sudo tee /etc/apt/apt.conf.d/99fishlinux-retries >/dev/null <<'EOF'
+          Acquire::Retries "5";
+          Acquire::http::Timeout "60";
+          Acquire::https::Timeout "60";
+          EOF
+
       - name: Install ISO build tools
         run: |
-          sudo apt-get update
+          set -euxo pipefail
+          for attempt in 1 2 3 4 5; do
+            if sudo apt-get update; then
+              break
+            fi
+            echo "APT update failed; retrying in 10 seconds (attempt $attempt/5)"
+            sleep 10
+          done
           sudo apt-get install -y \
             debootstrap \
             squashfs-tools \
@@ -36,11 +52,19 @@ jobs:
           sudo rm -rf build/rootfs build/iso
           sudo mkdir -p build/rootfs build/iso
 
-          sudo debootstrap \
-            --arch=amd64 \
-            --components=main,restricted,universe,multiverse \
-            --include=systemd-sysv,linux-image-generic,initramfs-tools,casper \
-            resolute build/rootfs http://archive.ubuntu.com/ubuntu/
+          for attempt in 1 2 3 4 5; do
+            if sudo debootstrap \
+              --arch=amd64 \
+              --components=main,restricted,universe,multiverse \
+              --include=systemd-sysv,linux-image-generic,initramfs-tools,casper \
+              resolute build/rootfs http://archive.ubuntu.com/ubuntu/; then
+              break
+            fi
+            echo "debootstrap failed; retrying from a clean rootfs in 10 seconds (attempt $attempt/5)"
+            sudo rm -rf build/rootfs
+            sudo mkdir -p build/rootfs
+            sleep 10
+          done
 
       - name: Configure repositories and install FishLinux desktop
         run: |
@@ -52,6 +76,12 @@ jobs:
           EOF
 
           sudo cp /etc/resolv.conf build/rootfs/etc/resolv.conf
+          sudo mkdir -p build/rootfs/etc/apt/apt.conf.d
+          sudo tee build/rootfs/etc/apt/apt.conf.d/99fishlinux-retries >/dev/null <<'EOF'
+          Acquire::Retries "5";
+          Acquire::http::Timeout "60";
+          Acquire::https::Timeout "60";
+          EOF
 
           sudo mount --bind /dev build/rootfs/dev
           sudo mount --bind /dev/pts build/rootfs/dev/pts
@@ -178,6 +208,11 @@ jobs:
           CHROOT
 
           sudo cp branding/fishlinux-aero.svg build/rootfs/usr/share/fishlinux/branding/fishlinux-aero.svg
+          sudo cp branding/fishlinux.txt build/rootfs/usr/share/fishlinux/branding/fishlinux.txt
+          sudo mkdir -p build/rootfs/usr/share/fastfetch/logos
+          sudo cp branding/fishlinux.txt build/rootfs/usr/share/fastfetch/logos/fishlinux.txt
+          sudo mkdir -p build/rootfs/usr/share/neofetch/logos
+          sudo cp branding/fishlinux.txt build/rootfs/usr/share/neofetch/logos/fishlinux.txt
 
           # Set FishLinux branding in the login greeter when supported by the greeter theme.
           sudo tee build/rootfs/etc/lightdm/lightdm-gtk-greeter.conf >/dev/null <<'EOF'
