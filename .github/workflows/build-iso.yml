@@ -42,7 +42,7 @@ jobs:
             --include=systemd-sysv,linux-image-generic,initramfs-tools,casper \
             resolute build/rootfs http://archive.ubuntu.com/ubuntu/
 
-      - name: Configure Ubuntu repositories and install FishLinux desktop
+      - name: Configure repositories and install FishLinux desktop
         run: |
           set -euxo pipefail
           sudo tee build/rootfs/etc/apt/sources.list >/dev/null <<'EOF'
@@ -77,7 +77,8 @@ jobs:
             sudo \
             xorg \
             xserver-xorg-video-all \
-            ubuntu-standard
+            ubuntu-standard \
+            calamares
 
           systemctl enable lightdm || true
           systemctl enable NetworkManager || true
@@ -97,6 +98,7 @@ jobs:
           greeter-session=lightdm-gtk-greeter
           EOF
 
+          # FishLinux identity
           mkdir -p /usr/share/fishlinux/branding
           cat > /etc/fishlinux-release <<'EOF'
           NAME="FishLinux"
@@ -106,14 +108,85 @@ jobs:
           UBUNTU_CODENAME="resolute"
           PRETTY_NAME="FishLinux 0.1.0 - Ubuntu 26.04 LTS + XFCE + Openbox"
           EOF
-
           echo 'fishlinux' > /etc/hostname
+
+          # Calamares installer desktop shortcut
+          mkdir -p /usr/share/applications
+          cat > /usr/share/applications/fishlinux-installer.desktop <<'EOF'
+          [Desktop Entry]
+          Type=Application
+          Name=Install FishLinux
+          GenericName=System Installer
+          Comment=Install FishLinux to your computer
+          Exec=calamares
+          Icon=/usr/share/fishlinux/branding/fishlinux-aero.svg
+          Terminal=false
+          Categories=System;Settings;
+          StartupNotify=true
+          EOF
+
+          # Openbox session entry for users who want the lightweight WM
+          cat > /usr/share/xsessions/fishlinux-openbox.desktop <<'EOF'
+          [Desktop Entry]
+          Name=FishLinux Openbox
+          Comment=FishLinux lightweight Aero-inspired Openbox session
+          Exec=openbox-session
+          TryExec=openbox-session
+          Type=Application
+          EOF
+
+          # XFCE Aero-inspired defaults: compositor, shadows, and translucent panel.
+          mkdir -p /etc/xdg/xfce4/xfconf/xfce-perchannel-xml
+          cat > /etc/xdg/xfce4/xfconf/xfce-perchannel-xml/xfwm4.xml <<'EOF'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <channel name="xfwm4" version="1.0">
+            <property name="general" type="empty">
+              <property name="use_compositing" type="bool" value="true"/>
+              <property name="show_dock_shadow" type="bool" value="true"/>
+              <property name="show_frame_shadow" type="bool" value="true"/>
+              <property name="frame_opacity" type="int" value="95"/>
+              <property name="inactive_opacity" type="int" value="92"/>
+            </property>
+          </channel>
+          EOF
+
+          cat > /etc/xdg/xfce4/xfconf/xfce-perchannel-xml/xsettings.xml <<'EOF'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <channel name="xsettings" version="1.0">
+            <property name="Gtk" type="empty">
+              <property name="EnableEventSounds" type="bool" value="true"/>
+              <property name="EnableInputFeedbackSounds" type="bool" value="false"/>
+            </property>
+            <property name="Net" type="empty">
+              <property name="DoubleClickTime" type="int" value="400"/>
+              <property name="DoubleClickDistance" type="int" value="5"/>
+            </property>
+          </channel>
+          EOF
+
+          # Give the live desktop a FishLinux launcher and Aero-style session setup.
+          mkdir -p /etc/skel/Desktop
+          cp /usr/share/applications/fishlinux-installer.desktop /etc/skel/Desktop/fishlinux-installer.desktop
+          chmod +x /etc/skel/Desktop/fishlinux-installer.desktop
+          cp /usr/share/applications/fishlinux-installer.desktop /home/fish/Desktop/fishlinux-installer.desktop
+          chown -R fish:fish /home/fish/Desktop
+          chmod +x /home/fish/Desktop/fishlinux-installer.desktop
+
           rm -f /etc/machine-id
           apt-get clean
           rm -rf /var/lib/apt/lists/*
           CHROOT
 
           sudo cp branding/fishlinux-aero.svg build/rootfs/usr/share/fishlinux/branding/fishlinux-aero.svg
+
+          # Set FishLinux branding in the login greeter when supported by the greeter theme.
+          sudo tee build/rootfs/etc/lightdm/lightdm-gtk-greeter.conf >/dev/null <<'EOF'
+          [greeter]
+          logo=/usr/share/fishlinux/branding/fishlinux-aero.svg
+          user-title=FishLinux
+          theme-name=Greybird
+          icon-theme-name=elementary-xfce
+          EOF
 
           sudo umount -lf build/rootfs/run || true
           sudo umount -lf build/rootfs/sys || true
