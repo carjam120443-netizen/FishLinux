@@ -1,0 +1,53 @@
+name: Build FishLinux ISO
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out FishLinux
+        uses: actions/checkout@v4
+
+      - name: Show Ubuntu builder
+        run: |
+          lsb_release -a
+          uname -a
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            debootstrap \
+            squashfs-tools \
+            xorriso \
+            grub-pc-bin \
+            grub-efi-amd64-bin \
+            grub2-common \
+            mtools \
+            dosfstools
+
+      - name: Prepare build directories
+        run: |
+          mkdir -p build/rootfs build/iso
+
+      - name: Build placeholder root filesystem
+        run: |
+          printf '%s\n' 'FishLinux ISO build scaffold' > build/rootfs/README.txt
+          printf '%s\n' 'Ubuntu-based Aero desktop distribution.' >> build/rootfs/README.txt
+
+      - name: Package build artifacts
+        run: |
+          tar -C build/rootfs -czf build/fishlinux-rootfs.tar.gz .
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: fishlinux-build
+          path: build/fishlinux-rootfs.tar.gz
