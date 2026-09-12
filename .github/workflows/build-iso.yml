@@ -31,23 +31,116 @@ jobs:
             grub-efi-amd64-bin \
             grub2-common \
             mtools \
-            dosfstools
+            dosfstools \
+            grub-imageboot \
+            linux-image-generic \
+            systemd-sysv
 
       - name: Prepare build directories
         run: |
-          mkdir -p build/rootfs build/iso
+          rm -rf build/rootfs build/iso build/work
+          mkdir -p build/rootfs build/iso build/work
 
-      - name: Build placeholder root filesystem
+      - name: Bootstrap Ubuntu 26.04 LTS root filesystem
         run: |
-          printf '%s\n' 'FishLinux ISO build scaffold' > build/rootfs/README.txt
-          printf '%s\n' 'Ubuntu-based Aero desktop distribution.' >> build/rootfs/README.txt
+          sudo debootstrap --arch=amd64 --variant=minbase resolute build/rootfs http://archive.ubuntu.com/ubuntu/
 
-      - name: Package build artifacts
+      - name: Configure FishLinux root filesystem
         run: |
-          tar -C build/rootfs -czf build/fishlinux-rootfs.tar.gz .
+          sudo mount --bind /dev build/rootfs/dev
+          sudo mount --bind /dev/pts build/rootfs/dev/pts
+          sudo mount -t proc /proc build/rootfs/proc
+          sudo mount -t sysfs /sys build/rootfs/sys
+          sudo mount -t tmpfs tmpfs build/rootfs/run
 
-      - name: Upload build artifact
+          sudo cp /etc/resolv.conf build/rootfs/etc/resolv.conf
+
+          sudo chroot build/rootfs /bin/bash -eux <<'CHROOT'
+          export DEBIAN_FRONTEND=noninteractive
+          apt-get update
+          apt-get install -y \
+            xfce4 \
+            xfce4-goodies \
+            lightdm \
+            openbox \
+            dbus-x11 \
+            network-manager \
+            sudo \
+            firefox \
+            xfce4-terminal \
+            thunar
+
+          systemctl enable lightdm || true
+          systemctl enable NetworkManager || true
+
+          useradd -m -s /bin/bash fish || true
+          usermod -aG sudo fish
+          echo 'fish:fish' | chpasswd
+
+          mkdir -p /usr/share/fishlinux/branding
+          CHROOT
+
+          sudo cp branding/fishlinux-aero.svg build/rootfs/usr/share/fishlinux/branding/fishlinux-aero.svg
+
+          sudo tee build/rootfs/etc/fishlinux-release >/dev/null <<'EOF'
+          NAME="FishLinux"
+          ID=fishlinux
+          ID_LIKE=ubuntu
+          VERSION_ID="0.1.0"
+          UBUNTU_BASE="26.04 LTS"
+          PRETTY_NAME="FishLinux 0.1.0 - Ubuntu 26.04 LTS + XFCE + Openbox"
+          EOF
+
+          sudo tee build/rootfs/etc/default/openbox >/dev/null <<'EOF'
+          # FishLinux uses XFCE as its desktop environment with Openbox available as a lightweight window manager.
+          EOF
+
+          sudo umount -lf build/rootfs/run || true
+          sudo umount -lf build/rootfs/sys || true
+          sudo umount -lf build/rootfs/proc || true
+          sudo umount -lf build/rootfs/dev/pts || true
+          sudo umount -lf build/rootfs/dev || true
+
+      - name: Create SquashFS filesystem
+        run: |
+          sudo mksquashfs build/rootfs build/work/filesystem.squashfs -comp xz -noappend
+
+      - name: Install kernel and boot files
+        run: |
+          sudo mkdir -p build/iso/casper build/iso/.disk
+          sudo cp build/rootfs/boot/vmlinuz-* build/iso/casper/vmlinuz
+          sudo cp build/rootfs/boot/initrd.img-* build/iso/casper/initrd
+          sudo cp build/work/filesystem.squashfs build/iso/casper/filesystem.squashfs
+          printf '%s\n' 'FishLinux 0.1.0' | sudo tee build/iso/.disk/info
+
+      - name: Create GRUB configuration
+        run: |
+          sudo mkdir -p build/iso/boot/grub
+          sudo tee build/iso/boot/grub/grub.cfg >/dev/null <<'EOF'
+          set timeout=5
+          set default=0
+
+          menuentry 'FishLinux' {
+              linux /casper/vmlinuz boot=casper quiet splash
+              initrd /casper/initrd
+          }
+          EOF
+
+      - name: Build bootable ISO
+        run: |
+          sudo xorriso -as mkisofs \
+            -r -V 'FISHLINUX' \
+            -o build/FishLinux-0.1.0-amd64.iso \
+            -J -joliet-long -iso-level 3 \
+            -b boot/grub/i386-pc/eltorito.img \
+            -no-emul-boot \
+            -boot-load-size 4 \
+            -boot-info-table \
+            -eltorito-catalog boot/grub/boot.cat \
+            build/iso
+
+      - name: Upload FishLinux ISO
         uses: actions/upload-artifact@v4
         with:
-          name: fishlinux-build
-          path: build/fishlinux-rootfs.tar.gz
+          name: FishLinux-0.1.0-amd64
+          path: build/FishLinux-0.1.0-amd64.iso
