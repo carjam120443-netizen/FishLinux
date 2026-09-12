@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 300" role="img" aria-labelledby="title desc">
+<title id="title">FishLinux Aero Logo</title>
+<desc id="desc">A glossy blue fish-inspired Aero logo for FishLinux.</desc>
+<defs>
+  <linearGradient id="glass" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff" stop-opacity=".9"/><stop offset=".42" stop-color="#8ee8ff" stop-opacity=".45"/><stop offset="1" stop-color="#087fc1" stop-opacity=".9"/></linearGradient>
+  <linearGradient id="body" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#b9f6ff"/><stop offset=".35" stop-color="#32c5f4"/><stop offset="1" stop-color="#0874c9"/></linearGradient>
+  <filter id="shadow" x="-30%" y="-30%" width="160%" height="170%"><feGaussianBlur stdDeviation="9"/><feOffset dy="9"/><feComponentTransfer><feFuncA type="linear" slope=".35"/></feComponentTransfer><feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+</defs>
+<g filter="url(#shadow)">
+  <path d="M105 150c70-91 201-101 308-36 49-41 101-56 154-48-24 27-40 53-45 84 5 31 21 57 45 84-53 8-105-7-154-48-107 65-238 55-308-36 25 9 49 9 72 0-23-9-47-9-72 0z" fill="url(#body)" stroke="#0066b3" stroke-width="8"/>
+  <path d="M117 137c73-60 181-61 278-12-85-15-178-5-253 37-16 9-31 10-46 7 10-11 17-22 21-32z" fill="url(#glass)" opacity=".9"/>
+  <circle cx="177" cy="137" r="13" fill="#083d70"/><circle cx="181" cy="132" r="5" fill="#fff" opacity=".9"/>
+  <path d="M560 82l55-43-18 72zM560 218l55 43-18-72z" fill="url(#body)" stroke="#0066b3" stroke-width="8"/>
+  <path d="M335 95c27-24 57-37 89-43-16 26-20 50-13 70" fill="none" stroke="#e9fcff" stroke-width="12" stroke-linecap="round" opacity=".7"/>
+</g>
+<text x="650" y="178" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="70" font-weight="700" fill="#eafaff" stroke="#0874c9" stroke-width="3" paint-order="stroke">FishLinux</text>
+</svg>
